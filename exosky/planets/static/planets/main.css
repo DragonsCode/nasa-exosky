@@ -1,0 +1,23 @@
+body {
+    margin: 0;
+    overflow: hidden;
+}
+
+canvas {
+    display: block;
+}
+
+#tooltip {
+    position: absolute;
+    color: white;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 5px;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    pointer-events: none; /* Ensure the tooltip doesn’t block interaction */
+    display: none; /* Initially hidden */
+    white-space: nowrap;
+    z-index: 10;
+    transition: opacity 0.2s ease-in-out;
+}
