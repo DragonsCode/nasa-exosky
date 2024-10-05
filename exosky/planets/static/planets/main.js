@@ -21,9 +21,8 @@ document.body.appendChild(renderer.domElement);
 
 // Array of star textures
 const starTextures = [
-    'static/planets/img/star1.png',
-    'static/planets/img/star2.png',
-    'static/planets/img/star3.png'
+    'static/planets/img/star.png'
+    // 'static/planets/img/planet.png'
 ];
 
 // Load textures and create an array of loaded textures
