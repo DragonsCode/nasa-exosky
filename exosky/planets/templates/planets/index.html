@@ -1,21 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>ExoSky map</title>
-        <link rel="stylesheet" href="../static/planets/main.css" />
-        <script type="importmap">
-            {
-              "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-                "OrbitControls": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/controls/OrbitControls.js",
-                "GLTFLoader": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/loaders/GLTFLoader.js"
-              }
-            }
-        </script>
-    </head>
-	<body>
-		<script type="module" src="../static/planets/main.js"></script>
-	</body>
-</html>
+{% extends 'planets/base.html' %}
+
+{% load static %}
+
+{% block title %}
+    ExoSky Map
+{% endblock %}
+
+{% block content %}
+    <div id="exosky-container">
+        <canvas id="c"></canvas>
+        <div id="tooltip"></div>
+        <!-- Your 3D scene content will go here -->
+        <script type="module" src="{% static 'planets/main.js' %}"></script>
+    </div>
+    <div>
+      <h1 id="starhead">Info about exoplanets</h1>
+      <p id="starpara">Exoplanets are interesting!</p>
+    </div>
+{% endblock %}

@@ -1,11 +1,8 @@
-body {
-    margin: 0;
-    overflow: hidden;
-}
-
 canvas {
     display: block;
 }
+
+
 
 #tooltip {
     position: absolute;
@@ -20,4 +17,10 @@ canvas {
     white-space: nowrap;
     z-index: 10;
     transition: opacity 0.2s ease-in-out;
+}
+
+#exosky-container {
+    display: block;
+    width: 100%; /* Full width */
+    height: 100vh; /* Full viewport height */
 }

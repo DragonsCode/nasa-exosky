@@ -15,14 +15,14 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.z = 300;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+const c = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true });
+renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
 
 // Array of star textures
 const starTextures = [
-    'static/planets/img/star.png'
-    // 'static/planets/img/planet.png'
+    'static/planets/img/star.png',
+    'static/planets/img/planet.png'
 ];
 
 // Load textures and create an array of loaded textures
@@ -56,15 +56,6 @@ function createTextLabel(text) {
     return sprite;
 }
 
-// Random position helper
-function randomPosition() {
-    const range = 500;
-    return [
-        THREE.MathUtils.randFloatSpread(range),
-        THREE.MathUtils.randFloatSpread(range),
-    ];
-}
-
 // Fetch the exoplanets JSON data
 fetch('./static/planets/exoplanets.json')
     .then(response => response.json())
@@ -74,17 +65,17 @@ fetch('./static/planets/exoplanets.json')
 
         exoplanetsData.forEach((starData, i) => {
             // Select a random texture from the loaded textures
-            let randomTexture = loadedTextures[0];
+            let randomTexture = loadedTextures[1];
             if (!starData.planet_name) {
-                randomTexture = loadedTextures[1];
+                randomTexture = loadedTextures[0];
             }
             
             // Create star as a sprite using the selected random texture
             const starMaterial = new THREE.SpriteMaterial({ map: randomTexture });
             const star = new THREE.Sprite(starMaterial);
-            star.position.set(starData.coordinates.x*5000, starData.coordinates.y*5000, starData.coordinates.z*5000); // Set to random position
+            star.position.set(starData.coordinates.x * 5000, starData.coordinates.y * 5000, starData.coordinates.z * 5000); // Set to random position
             star.scale.set(20, 20, 1); // Adjust the star size as needed
-            star.userData = { name: starData.planet_name, url: "https://science.nasa.gov/exoplanet-catalog/"+starData.planet_name.replace(/ /g, '-'), is3D: false }; // Add is3D flag to track if it's swapped to 3D
+            star.userData = { name: starData.planet_name, url: "https://science.nasa.gov/exoplanet-catalog/" + starData.planet_name.replace(/ /g, '-'), is3D: false, description: starData.description }; // Add is3D flag to track if it's swapped to 3D
             
             stars.push(star);
             scene.add(star);
@@ -126,11 +117,11 @@ fetch('./static/planets/exoplanets.json')
                     scene.remove(star.userData.replacedWith3D); // Remove the 3D model
 
                     // Select a random texture for the new star sprite
-                    let randomTexture = loadedTextures[0];
+                    let newrandomTexture = loadedTextures[0];
                     if (!star.userData.planet_name) {
-                        randomTexture = loadedTextures[1];
+                        newrandomTexture = loadedTextures[1];
                     }
-                    const starMaterial = new THREE.SpriteMaterial({ map: randomTexture });
+                    const starMaterial = new THREE.SpriteMaterial({ map: newrandomTexture });
                     const newStar = new THREE.Sprite(starMaterial);
                     newStar.position.copy(star.userData.replacedWith3D.position); // Keep the same position
                     newStar.scale.set(20, 20, 1); // Adjust scale as needed
@@ -139,6 +130,9 @@ fetch('./static/planets/exoplanets.json')
 
                     star.userData.is3D = false;
                 }
+
+                // Update label position even if star is 2D or 3D
+                labels[index].position.copy(star.position); // Keep the same position
             });
 
             renderer.render(scene, camera);
@@ -148,44 +142,68 @@ fetch('./static/planets/exoplanets.json')
     })
     .catch(error => console.error('Error loading JSON:', error));
 
-// Handle mouse movement for hover effect
-window.addEventListener('mousemove', (event) => {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+const tooltip = document.getElementById('tooltip');
+const starhead = document.getElementById('starhead');
+const starpara = document.getElementById('starpara');
 
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(stars);
-
-    // Hide all labels by default
-    labels.forEach(label => label.visible = false);
-
-    if (intersects.length > 0) {
-        const star = intersects[0].object;
-        const index = stars.indexOf(star);
-
-        if (index !== -1) {
-            labels[index].visible = true; // Show label for the hovered star
-            // Update label position to follow the star
-            labels[index].position.copy(star.position); // Keep the same position
-            labels[index].position.y += 10; // Offset for label position
+    c.addEventListener('mousemove', (event) => {
+        mouse.x = (event.clientX / (window.innerWidth)) * 2 - 1;
+        mouse.y = -(event.clientY / (window.innerHeight)) * 2 + 1;
+    
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(stars);
+    
+        // Hide the tooltip by default
+        tooltip.style.display = 'none';
+    
+        if (intersects.length > 0) {
+            const star = intersects[0].object;
+            const index = stars.indexOf(star);
+    
+            if (index !== -1) {
+                // Show tooltip
+                tooltip.style.display = 'block'; 
+    
+                // Project the star's position to 2D screen coordinates
+                const vector = star.position.clone();
+                vector.project(camera);
+    
+                // Convert normalized device coordinates to screen coordinates
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = -(vector.y * 0.5 - 0.5) * window.innerHeight;
+    
+                // Set the tooltip's position
+                tooltip.style.left = `${x}px`;
+                tooltip.style.top = `${y}px`;
+    
+                // Display star information in the tooltip
+                tooltip.innerHTML = star.userData.name; // or any other relevant information
+                starhead.innerHTML = star.userData.name;
+                starpara.innerHTML = star.userData.description;
+            }
         }
-    }
-});
+    });
 
 // Handle click event for redirection
 window.addEventListener('click', () => {
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(stars);
+    const intersects = raycaster.intersectObjects([...stars, ...scene.children.filter(child => child.isMesh)]); // Check both stars and 3D meshes
 
-    if (intersects.length > 0 && intersects[0].object.userData.is3D) {
+    if (intersects.length > 0 && intersects[0].object.isMesh) {
         const star = intersects[0].object;
-        window.location.href = star.userData.url;
+
+        // Check if star is a sprite or a 3D model and handle accordingly
+        if (star.userData.is3D) {
+            window.location.href = star.userData.url;
+        } else if (star.userData.url) {
+            window.location.href = star.userData.url; // Handle the case for 2D stars
+        }
     }
 });
 
 // Handle resizing
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.aspect = (window.innerWidth / 2) / (window.innerHeight / 2);
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
 });

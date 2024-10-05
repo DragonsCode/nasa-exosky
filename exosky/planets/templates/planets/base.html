@@ -1,0 +1,68 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NASA Project{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'planets/base.css' %}">
+    <link rel="stylesheet" href="{% static 'planets/main.css' %}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+                "OrbitControls": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/controls/OrbitControls.js",
+                "GLTFLoader": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/loaders/GLTFLoader.js"
+            }
+        }
+    </script>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="{% url 'index' %}" class="navbar-brand">
+                <img src="{% static 'images/nasa_logo.png' %}" alt="NASA" class="logo">
+            </a>
+            <ul class="nav-menu">
+                <li><a href="{% url 'index' %}">Home</a></li>
+                <li><a href="{% url 'about' %}">About</a></li>
+                <li><a href="{% url 'contact' %}">Contact Us</a></li>
+            </ul>
+            <div class="dropdown">
+                <button class="dropbtn">Menu <i class="fas fa-caret-down"></i></button>
+                <div class="dropdown-content">
+                    <a href="{% url 'index' %}">Index</a>
+                    <a href="{% url 'about' %}">About</a>
+                    <a href="{% url 'contact' %}">Contact Us</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+        <div class="container">
+            {% block content %}
+            {% endblock %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-left">
+                <p>Contact: nasa@example.com | Phone: (123) 456-7890</p>
+            </div>
+            <div class="footer-right">
+                <a href="https://github.com/yourprofile" target="_blank">
+                    <i class="fab fa-github"></i> GitHub
+                </a>
+                <a href="#">Other Info</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
