@@ -67,6 +67,7 @@ html, body {
     min-width: 160px;
     box-shadow: 0px 8px 16px rgba(0,0,0,0.3);
     z-index: 1;
+    right: 0; /* Align the dropdown to the right */
 }
 
 .dropdown-content a {
@@ -86,12 +87,13 @@ html, body {
 
 /* Footer Styles */
 footer {
-    position: relative; /* Ensure it follows normal flow */
-    z-index: 1; /* Put it above other content but still below the canvas */
-    background: #333; /* A background to distinguish the footer */
-    color: white; /* Footer text color */
-    padding: 10px; /* Padding for the footer */
-    bottom: 0;
+    background: #333;   /* A background color to distinguish the footer */
+    color: white;       /* Footer text color */
+    padding: 10px;      /* Padding for the footer */
+    bottom: 0;          /* Stay at the bottom */
+    width: 100%;        /* Ensure the footer spans the full width */
+    text-align: center; /* Center-align the footer content */
+    position: relative; /* Make sure it follows the normal flow */
 }
 
 .footer-left, .footer-right {
@@ -123,4 +125,9 @@ footer {
         display: block;
         text-align: center;
     }
+}
+
+
+.infopage {
+    height: 75vh; /* Full viewport height */
 }

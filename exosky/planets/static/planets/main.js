@@ -11,7 +11,7 @@ const camera = new THREE.PerspectiveCamera(
     75,
     window.innerWidth / window.innerHeight,
     0.1,
-    1000
+    10000
 );
 camera.position.z = 300;
 
@@ -56,6 +56,20 @@ function createTextLabel(text) {
     return sprite;
 }
 
+// Function to calculate color based on mass and distance
+function getColorFromData(mass, distance) {
+    // Normalize mass and distance to values between 0 and 1
+    const normalizedMass = THREE.MathUtils.clamp(mass / 10, 0, 1);  // Assuming max mass is 10
+    const normalizedDistance = THREE.MathUtils.clamp(distance / 1000, 0, 1);  // Assuming max distance is 1000 AU
+
+    // Map mass to red and distance to blue
+    const red = normalizedMass; 
+    const blue = normalizedDistance;
+    const green = 0.5 * ((1 - normalizedMass) + (1 - normalizedDistance))  // Adjust green based on both values
+
+    return new THREE.Color(red, green, blue);  // Return a color object
+}
+
 // Fetch the exoplanets JSON data
 fetch('./static/planets/exoplanets.json')
     .then(response => response.json())
@@ -64,18 +78,15 @@ fetch('./static/planets/exoplanets.json')
         console.log(exoplanetsData);  // Now you have the JSON data
 
         exoplanetsData.forEach((starData, i) => {
-            // Select a random texture from the loaded textures
-            let randomTexture = loadedTextures[1];
-            if (!starData.planet_name) {
-                randomTexture = loadedTextures[0];
-            }
+            let randomTexture = loadedTextures[0];
             
             // Create star as a sprite using the selected random texture
-            const starMaterial = new THREE.SpriteMaterial({ map: randomTexture });
+            const color = getColorFromData(starData.mass, starData.distance);
+            const starMaterial = new THREE.SpriteMaterial({ map: randomTexture, color: color, });
             const star = new THREE.Sprite(starMaterial);
-            star.position.set(starData.coordinates.x * 5000, starData.coordinates.y * 5000, starData.coordinates.z * 5000); // Set to random position
+            star.position.set(starData.coordinates.x * 10000, starData.coordinates.y * 10000, starData.coordinates.z * 10000); // Set to random position
             star.scale.set(20, 20, 1); // Adjust the star size as needed
-            star.userData = { name: starData.planet_name, url: "https://science.nasa.gov/exoplanet-catalog/" + starData.planet_name.replace(/ /g, '-'), is3D: false, description: starData.description }; // Add is3D flag to track if it's swapped to 3D
+            star.userData = { name: starData.planet_name, star: starData.star_name, url: "https://science.nasa.gov/exoplanet-catalog/" + starData.planet_name.replace(/ /g, '-'), is3D: false, description: starData.description, mass: starData.mass, distance: starData.distance }; // Add is3D flag to track if it's swapped to 3D
             
             stars.push(star);
             scene.add(star);
@@ -118,10 +129,8 @@ fetch('./static/planets/exoplanets.json')
 
                     // Select a random texture for the new star sprite
                     let newrandomTexture = loadedTextures[0];
-                    if (!star.userData.planet_name) {
-                        newrandomTexture = loadedTextures[1];
-                    }
-                    const starMaterial = new THREE.SpriteMaterial({ map: newrandomTexture });
+                    const color = getColorFromData(star.userData.mass, star.userData.distance);
+                    const starMaterial = new THREE.SpriteMaterial({ map: newrandomTexture, color: color, });
                     const newStar = new THREE.Sprite(starMaterial);
                     newStar.position.copy(star.userData.replacedWith3D.position); // Keep the same position
                     newStar.scale.set(20, 20, 1); // Adjust scale as needed

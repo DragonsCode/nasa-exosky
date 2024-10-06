@@ -8,13 +8,19 @@
 
 {% block content %}
     <div id="exosky-container">
+        <div>
+            <h1>ExoSky</h1>
+        </div>
         <canvas id="c"></canvas>
         <div id="tooltip"></div>
         <!-- Your 3D scene content will go here -->
         <script type="module" src="{% static 'planets/main.js' %}"></script>
-    </div>
-    <div>
-      <h1 id="starhead">Info about exoplanets</h1>
-      <p id="starpara">Exoplanets are interesting!</p>
+        <div>
+            <h1 id="starhead">Info about exoplanets</h1>
+            <p id="starpara">Exoplanets are interesting!</p>
+        </div>
+        <div>
+            <p>Information is from third-party dataset, which referensec to NASA.</p>
+        </div>
     </div>
 {% endblock %}
