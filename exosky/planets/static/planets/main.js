@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'OrbitControls';
+import { colorChannels, pointerCoordinates, updateStarRepresentation } from './rendering.mjs';
 
 let exoplanetsData;
 let stars = [];
@@ -17,12 +18,12 @@ camera.position.z = 300;
 
 const c = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true });
-renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
+resizeRenderer();
 
 // Array of star textures
 const starTextures = [
-    'static/planets/img/star.png',
-    'static/planets/img/planet.png'
+    new URL('./img/star.png', import.meta.url).href,
+    new URL('./img/planet.png', import.meta.url).href
 ];
 
 // Load textures and create an array of loaded textures
@@ -58,24 +59,21 @@ function createTextLabel(text) {
 
 // Function to calculate color based on mass and distance
 function getColorFromData(mass, distance) {
-    // Normalize mass and distance to values between 0 and 1
-    const normalizedMass = THREE.MathUtils.clamp(mass / 10, 0, 1);  // Assuming max mass is 10
-    const normalizedDistance = THREE.MathUtils.clamp(distance / 1000, 0, 1);  // Assuming max distance is 1000 AU
-
-    // Map mass to red and distance to blue
-    const red = normalizedMass; 
-    const blue = normalizedDistance;
-    const green = 0.5 * ((1 - normalizedMass) + (1 - normalizedDistance))  // Adjust green based on both values
-
-    return new THREE.Color(red, green, blue);  // Return a color object
+    return new THREE.Color(...colorChannels(mass, distance));
 }
 
 // Fetch the exoplanets JSON data
-fetch('./static/planets/exoplanets.json')
+fetch(new URL('./exoplanets.json', import.meta.url))
     .then(response => response.json())
     .then(data => {
         exoplanetsData = data;
-        console.log(exoplanetsData);  // Now you have the JSON data
+        const maxDistance = Math.max(1, ...data.map(row => row.distance));
+        camera.far = Math.max(10000, maxDistance * 4);
+        camera.up.set(0, 0, 1); // Equatorial +Z is north.
+        const initialExtent = Math.min(maxDistance, 1000);
+        camera.position.set(0, -initialExtent * 1.5, initialExtent * 0.5);
+        camera.updateProjectionMatrix();
+        controls.update();
 
         exoplanetsData.forEach((starData, i) => {
             let randomTexture = loadedTextures[0];
@@ -84,7 +82,7 @@ fetch('./static/planets/exoplanets.json')
             const color = getColorFromData(starData.mass, starData.distance);
             const starMaterial = new THREE.SpriteMaterial({ map: randomTexture, color: color, });
             const star = new THREE.Sprite(starMaterial);
-            star.position.set(starData.coordinates.x * 10000, starData.coordinates.y * 10000, starData.coordinates.z * 10000); // Set to random position
+            star.position.set(starData.coordinates.x, starData.coordinates.y, starData.coordinates.z); // One scene unit = one parsec
             star.scale.set(20, 20, 1); // Adjust the star size as needed
             star.userData = { name: starData.planet_name, star: starData.star_name, url: "https://science.nasa.gov/exoplanet-catalog/" + starData.planet_name.replace(/ /g, '-'), is3D: false, description: starData.description, mass: starData.mass, distance: starData.distance }; // Add is3D flag to track if it's swapped to 3D
             
@@ -108,40 +106,10 @@ fetch('./static/planets/exoplanets.json')
             stars.forEach((star, index) => {
                 const distance = camera.position.distanceTo(star.position);
 
-                // If close enough and star is not yet a 3D sphere
-                if (distance < distanceThreshold && !star.userData.is3D) {
-                    scene.remove(star); // Remove the 2D PNG star
-
-                    // Create a 3D star as a sphere
-                    const starGeometry = new THREE.SphereGeometry(10, 32, 32); // 10 = radius, 32 segments
-                    const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                    const star3D = new THREE.Mesh(starGeometry, starMaterial);
-                    star3D.position.copy(star.position); // Match the position
-                    star3D.userData = star.userData; // Retain the same userData
-                    scene.add(star3D);
-
-                    star.userData.is3D = true;
-                    star.userData.replacedWith3D = star3D; // Store the reference to the 3D model
-                } 
-                // If far enough and it's a 3D model, swap back to PNG
-                else if (distance >= distanceThreshold && star.userData.is3D) {
-                    scene.remove(star.userData.replacedWith3D); // Remove the 3D model
-
-                    // Select a random texture for the new star sprite
-                    let newrandomTexture = loadedTextures[0];
-                    const color = getColorFromData(star.userData.mass, star.userData.distance);
-                    const starMaterial = new THREE.SpriteMaterial({ map: newrandomTexture, color: color, });
-                    const newStar = new THREE.Sprite(starMaterial);
-                    newStar.position.copy(star.userData.replacedWith3D.position); // Keep the same position
-                    newStar.scale.set(20, 20, 1); // Adjust scale as needed
-                    newStar.userData = star.userData;
-                    scene.add(newStar);
-
-                    star.userData.is3D = false;
-                }
-
-                // Update label position even if star is 2D or 3D
-                labels[index].position.copy(star.position); // Keep the same position
+                const active = updateStarRepresentation(
+                    THREE, scene, stars, index, distance < distanceThreshold, loadedTextures[0]
+                );
+                labels[index].position.copy(active.position);
             });
 
             renderer.render(scene, camera);
@@ -156,8 +124,10 @@ const starhead = document.getElementById('starhead');
 const starpara = document.getElementById('starpara');
 
     c.addEventListener('mousemove', (event) => {
-        mouse.x = (event.clientX / (window.innerWidth)) * 2 - 1;
-        mouse.y = -(event.clientY / (window.innerHeight)) * 2 + 1;
+        const rect = c.getBoundingClientRect();
+        const pointer = pointerCoordinates(event, rect);
+        if (!pointer) return;
+        mouse.set(pointer.x, pointer.y);
     
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(stars);
@@ -178,41 +148,38 @@ const starpara = document.getElementById('starpara');
                 vector.project(camera);
     
                 // Convert normalized device coordinates to screen coordinates
-                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-                const y = -(vector.y * 0.5 - 0.5) * window.innerHeight;
+                const x = rect.left + (vector.x * 0.5 + 0.5) * rect.width;
+                const y = rect.top + (0.5 - vector.y * 0.5) * rect.height;
     
                 // Set the tooltip's position
                 tooltip.style.left = `${x}px`;
                 tooltip.style.top = `${y}px`;
     
                 // Display star information in the tooltip
-                tooltip.innerHTML = star.userData.name; // or any other relevant information
-                starhead.innerHTML = star.userData.name;
-                starpara.innerHTML = star.userData.description;
+                tooltip.textContent = star.userData.name; // or any other relevant information
+                starhead.textContent = star.userData.name;
+                starpara.textContent = star.userData.description;
             }
         }
     });
 
-// Handle click event for redirection
-window.addEventListener('click', () => {
+// Resolve each click against the canvas, including touch-generated clicks.
+c.addEventListener('click', (event) => {
+    const pointer = pointerCoordinates(event, c.getBoundingClientRect());
+    if (!pointer) return;
+    mouse.set(pointer.x, pointer.y);
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects([...stars, ...scene.children.filter(child => child.isMesh)]); // Check both stars and 3D meshes
-
-    if (intersects.length > 0 && intersects[0].object.isMesh) {
-        const star = intersects[0].object;
-
-        // Check if star is a sprite or a 3D model and handle accordingly
-        if (star.userData.is3D) {
-            window.location.href = star.userData.url;
-        } else if (star.userData.url) {
-            window.location.href = star.userData.url; // Handle the case for 2D stars
-        }
+    const intersects = raycaster.intersectObjects(stars);
+    if (intersects.length && intersects[0].object.userData.url) {
+        window.location.href = intersects[0].object.userData.url;
     }
 });
 
-// Handle resizing
-window.addEventListener('resize', () => {
-    camera.aspect = (window.innerWidth / 2) / (window.innerHeight / 2);
+function resizeRenderer() {
+    const width = Math.max(1, c.parentElement.clientWidth);
+    const height = Math.max(1, Math.round(window.innerHeight / 2));
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
-});
+    renderer.setSize(width, height);
+}
+window.addEventListener('resize', resizeRenderer);

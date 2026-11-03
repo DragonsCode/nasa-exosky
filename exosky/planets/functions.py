@@ -1,86 +1,112 @@
- 
-import xml.etree.ElementTree as ET
+"""Offline conversion of Open Exoplanet Catalogue XML into a system map."""
+import argparse
 import gzip
-import io
-import math
+import hashlib
 import json
+import math
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
-def parse_data():
-    # Parse the gzipped XML data
-    with gzip.open('exosky/planets/systems.xml.gz', 'rb') as f:
-        oec = ET.parse(io.BytesIO(f.read()))
+def finite_positive(value):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) and value > 0 else None
 
-    # Initialize a list to hold exoplanet data
-    exoplanets = []
 
-    # Extract data from the XML structure
-    for system in oec.findall(".//system"):
-        distance = system.findtext("distance")  # Distance in light years
-        right_ascension = system.findtext("rightascension")
-        declination = system.findtext("declination")
-        
-        # Set default distance if it's None or "Unknown"
-        if distance is None or distance == "Unknown":
-            distance_au = 1  # Placeholder value (1 AU) if unknown
-        else:
-            distance_au = float(distance) * 206265  # Convert light years to AU
+def sexagesimal_degrees(value, *, right_ascension=False):
+    """Parse OEC hh mm ss or signed dd mm ss, retaining a negative zero sign."""
+    parts = str(value).split()
+    if len(parts) != 3:
+        raise ValueError('Expected three sexagesimal components')
+    first, minutes, seconds = map(float, parts)
+    if not all(math.isfinite(v) for v in (first, minutes, seconds)):
+        raise ValueError('Coordinates must be finite')
+    if not 0 <= minutes < 60 or not 0 <= seconds < 60:
+        raise ValueError('Minutes and seconds must be in [0, 60)')
+    negative = parts[0].startswith('-')
+    magnitude = abs(first) + minutes / 60 + seconds / 3600
+    if right_ascension:
+        if negative or magnitude >= 24:
+            raise ValueError('Right ascension must be in [0, 24) hours')
+        return magnitude * 15
+    if magnitude > 90:
+        raise ValueError('Declination must be in [-90, 90] degrees')
+    return -magnitude if negative else magnitude
 
-        for star in system.findall("star"):
-            star_name = star.findtext("name") or "Unnamed Star"
-            
-            for planet in star.findall("planet"):
-                planet_name = planet.findtext("name") or "Unnamed Planet"
-                mass = planet.findtext("mass") or "Unknown"
-                semi_major_axis = planet.findtext("semimajoraxis") or "Unknown"
-                description = planet.findtext("description") or "No description available."
 
-                # Convert right ascension (RA) and declination (Dec) to radians
-                if right_ascension is not None and declination is not None:
-                    try:
-                        ra_hours = float(right_ascension.split()[0])  # Assuming right ascension is in hours
-                        dec_degrees = float(declination.split()[0])
-                        
-                        ra_rad = math.radians(ra_hours * 15)  # Convert hours to degrees, then to radians
-                        dec_rad = math.radians(dec_degrees)    # Convert degrees to radians
+def parse_data(source=None, output=None, *, coverage=None):
+    """Return one record per planet at its host system's heliocentric position.
 
-                        # Calculate Cartesian coordinates
-                        if semi_major_axis != "Unknown":
-                            semi_major_axis_au = float(semi_major_axis)  # Semi-major axis in AU
-                            x = semi_major_axis_au * math.cos(dec_rad) * math.cos(ra_rad)
-                            y = semi_major_axis_au * math.cos(dec_rad) * math.sin(ra_rad)
-                            z = semi_major_axis_au * math.sin(dec_rad)
-                            
-                            # Only append if coordinates are not all zeros
-                            if (x, y, z) != (0, 0, 0):
-                                exoplanets.append({
-                                    'star_name': star_name,
-                                    'planet_name': planet_name,
-                                    'mass': mass,
-                                    'coordinates': {'x': x, 'y': y, 'z': z},
-                                    'distance': distance_au,
-                                    'right_ascension': right_ascension,
-                                    'declination': declination,
-                                    'description': description
-                                })
-                    except ValueError:
-                        # Handle conversion errors
-                        continue  # Skip this planet if there's a conversion error
-                else:
-                    continue  # Skip if right ascension or declination is None
+    Input and output distances are parsecs. Orbital semimajor axes remain metadata
+    in AU; orbital phase and planet offsets cannot be inferred from this map.
+    Missing/invalid system positions are excluded, never assigned invented values.
+    """
+    source = Path(source) if source is not None else BASE_DIR / 'systems.xml.gz'
+    with gzip.open(source, 'rb') as handle:
+        tree = ET.parse(handle)
+    records = []
+    counts = {'total_planets': 0, 'included_planets': 0, 'excluded_invalid_distance': 0,
+              'excluded_invalid_coordinates': 0}
+    for system in tree.findall('.//system'):
+        planets = list(system.iter('planet'))
+        counts['total_planets'] += len(planets)
+        distance = finite_positive(system.findtext('distance'))
+        if distance is None:
+            counts['excluded_invalid_distance'] += len(planets)
+            continue
+        ra_text, dec_text = system.findtext('rightascension'), system.findtext('declination')
+        try:
+            ra = math.radians(sexagesimal_degrees(ra_text, right_ascension=True))
+            dec = math.radians(sexagesimal_degrees(dec_text))
+        except (ValueError, TypeError):
+            counts['excluded_invalid_coordinates'] += len(planets)
+            continue
+        position = {'x': distance * math.cos(dec) * math.cos(ra),
+                    'y': distance * math.cos(dec) * math.sin(ra),
+                    'z': distance * math.sin(dec)}
+        parents = {child: parent for parent in system.iter() for child in parent}
+        for planet in planets:
+            host = parents[planet]
+            records.append({
+                'star_name': host.findtext('name') or system.findtext('name') or 'Unnamed host system',
+                'planet_name': planet.findtext('name') or 'Unnamed Planet',
+                'mass': finite_positive(planet.findtext('mass')),
+                'mass_unit': 'M_jup',
+                'semimajor_axis_au': finite_positive(planet.findtext('semimajoraxis')),
+                'coordinates': position.copy(),
+                'coordinates_unit': 'pc',
+                'distance': distance,
+                'distance_unit': 'pc',
+                'right_ascension': ra_text,
+                'declination': dec_text,
+                'description': planet.findtext('description') or 'No description available.',
+            })
+    counts['included_planets'] = len(records)
+    if coverage is not None:
+        coverage.update(counts)
+    if output is not None:
+        Path(output).write_text(json.dumps(records, ensure_ascii=False, allow_nan=False) + '\n', encoding='utf-8')
+    return records
 
-    # Display the exoplanets' information
-    for exoplanet in exoplanets:
-        print(f"Star: {exoplanet['star_name']}, Planet: {exoplanet['planet_name']}, "
-            f"Mass: {exoplanet['mass']}, Coordinates: {exoplanet['coordinates']}, "
-            f"Distance: {exoplanet['distance']} AU, "
-            f"RA: {exoplanet['right_ascension']}, Dec: {exoplanet['declination']}, "
-            f"Description: {exoplanet['description']}")
-    # make json file
-    with open('exoplanets.json', 'w') as f:
-        json.dump(exoplanets, f)
-    return exoplanets
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--source', type=Path, default=BASE_DIR / 'systems.xml.gz')
+    parser.add_argument('--output', type=Path, default=BASE_DIR / 'static/planets/exoplanets.json')
+    args = parser.parse_args()
+    coverage = {}
+    parse_data(args.source, args.output, coverage=coverage)
+    report = {'source_sha256': hashlib.sha256(args.source.read_bytes()).hexdigest(),
+              'coordinate_frame': 'heliocentric equatorial axes; catalogue epoch not independently verified',
+              'distance_unit': 'pc', 'coordinate_unit': 'pc', **coverage}
+    args.output.with_suffix('.metadata.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == '__main__':
-    parse_data()
+    main()

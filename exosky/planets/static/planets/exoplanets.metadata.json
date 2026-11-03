@@ -1,0 +1,10 @@
+{
+  "source_sha256": "1d3a0ec64f00f269fffe6be43a080d45bddcd05ef156c3012780c29f38b3b701",
+  "coordinate_frame": "heliocentric equatorial axes; catalogue epoch not independently verified",
+  "distance_unit": "pc",
+  "coordinate_unit": "pc",
+  "total_planets": 5414,
+  "included_planets": 5167,
+  "excluded_invalid_distance": 228,
+  "excluded_invalid_coordinates": 19
+}
